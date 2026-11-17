@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Financial Tracker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: #ffffff; color: #111827; display: flex; justify-content: center; padding: 24px 16px; min-height: 100vh; }
+    .card { background: #ffffff; width: 100%; max-width: 460px; border-radius: 18px; padding: 24px; border: 1px solid #e5e7eb; height: fit-content; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    h1 { font-size: 22px; font-weight: 800; color: #111827; }
+    select.currency { border: 1px solid #d1d5db; border-radius: 8px; padding: 4px 8px; font-weight: 600; font-size: 13px; background: #ffffff; }
+    .subtitle { font-size: 13px; color: #6b7280; margin-bottom: 18px; }
+
+    .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+    .stat { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; }
+    .stat span { display: block; font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; }
+    .stat strong { display: block; font-size: 15px; margin-top: 4px; font-weight: 800; }
+    .inc { color: #16a34a; }
+    .exp { color: #dc2626; }
+
+    .form-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    input, select.type { width: 100%; padding: 11px 12px; border: 1px solid #d1d5db; border-radius: 10px; font-size: 14px; outline: none; background: #ffffff; }
+    input:focus, select:focus { border-color: #111827; }
+    .btn-add { background: #111827; color: #fff; border: none; border-radius: 10px; padding: 11px 16px; font-weight: 700; font-size: 14px; cursor: pointer; white-space: nowrap; }
+    .btn-add:hover { background: #374151; }
+
+    .actions { display: flex; justify-content: space-between; align-items: center; margin: 14px 0; }
+    .btn-export { background: #ffffff; color: #111827; border: 1px solid #d1d5db; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .btn-clear { background: #ffffff; color: #dc2626; border: 1px solid #fca5a5; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+    .list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .item { display: flex; justify-content: space-between; align-items: center; padding: 11px 12px; border: 1px solid #e5e7eb; border-radius: 10px; background: #ffffff; }
+    .item-info strong { display: block; font-size: 14px; color: #111827; }
+    .item-info small { font-size: 11px; color: #6b7280; }
+    .item-right { display: flex; align-items: center; gap: 10px; }
+    .amt { font-weight: 700; font-size: 14px; }
+    .del { background: none; border: none; color: #9ca3af; font-size: 16px; cursor: pointer; }
+    .del:hover { color: #dc2626; }
+    .empty { text-align: center; color: #6b7280; font-size: 13px; padding: 24px 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h1>Financial Tracker</h1>
+      <select id="currency" class="currency" onchange="render()">
+        <option value="AED">AED</option>
+        <option value="INR">INR</option>
+        <option value="USD">USD</option>
+      </select>
+    </div>
+    <p class="subtitle">Track your daily income, expenses, and net balance.</p>
+
+    <div class="summary">
+      <div class="stat"><span>Balance</span><strong id="bal">0.00</strong></div>
+      <div class="stat"><span>Income</span><strong id="inc" class="inc">+0.00</strong></div>
+      <div class="stat"><span>Expense</span><strong id="exp" class="exp">-0.00</strong></div>
+    </div>
+
+    <div class="form-row">
+      <input type="text" id="desc" placeholder="Description (e.g. Salary, Rent)" />
+    </div>
+    <div class="form-row">
+      <input type="number" id="amount" placeholder="Amount" step="0.01" />
+      <select id="type" class="type">
+        <option value="income">+ Income</option>
+        <option value="expense">- Expense</option>
+      </select>
+      <button class="btn-add" onclick="addEntry()">Add</button>
+    </div>
+
+    <div class="actions">
+      <button class="btn-export" onclick="exportCSV()">Export CSV</button>
+      <button class="btn-clear" onclick="clearAll()">Clear all</button>
+    </div>
+
+    <ul id="list" class="list"></ul>
+    <p id="empty" class="empty">No transactions yet. Add one above to get started.</p>
+  </div>
+
+  <script>
+    let entries = JSON.parse(localStorage.getItem('fin_entries') || '[]');
+
+    function save() {
+      localStorage.setItem('fin_entries', JSON.stringify(entries));
+    }
+
+    function addEntry() {
+      const desc = document.getElementById('desc').value.trim();
+      const amount = parseFloat(document.getElementById('amount').value);
+      const type = document.getElementById('type').value;
+      if (!desc || isNaN(amount) || amount <= 0) return;
+
+      entries.unshift({
+        id: Date.now(),
+        desc,
+        amount,
+        type,
+        date: new Date().toLocaleDateString()
+      });
+
+      document.getElementById('desc').value = '';
+      document.getElementById('amount').value = '';
+      save();
+      render();
+    }
+
+    function removeEntry(id) {
+      entries = entries.filter(e => e.id !== id);
+      save();
+      render();
+    }
+
+    function clearAll() {
+      if (!entries.length) return;
+      entries = [];
+      save();
+      render();
+    }
+
+    function exportCSV() {
+      if (!entries.length) return;
+      const cur = document.getElementById('currency').value;
+      const rows = [['Date', 'Description', 'Type', `Amount (${cur})`]];
+      entries.forEach(e => rows.push([e.date, `"${e.desc}"`, e.type, e.amount.toFixed(2)]));
+      const blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'financial-records.csv';
+      a.click();
+    }
+
+    function render() {
+      const cur = document.getElementById('currency').value;
+      const list = document.getElementById('list');
+      const empty = document.getElementById('empty');
+      list.innerHTML = '';
+
+      let income = 0, expense = 0;
+      entries.forEach(e => {
+        if (e.type === 'income') income += e.amount;
+        else expense += e.amount;
+
+        const li = document.createElement('li');
+        li.className = 'item';
+        li.innerHTML = `
+          <div class="item-info">
+            <strong>${e.desc}</strong>
+            <small>${e.date}</small>
+          </div>
+          <div class="item-right">
+            <span class="amt ${e.type === 'income' ? 'inc' : 'exp'}">
+              ${e.type === 'income' ? '+' : '-'}${cur} ${e.amount.toFixed(2)}
+            </span>
+            <button class="del" onclick="removeEntry(${e.id})">&times;</button>
+          </div>
+        `;
+        list.appendChild(li);
+      });
+
+      const balance = income - expense;
+      document.getElementById('bal').textContent = `${cur} ${balance.toFixed(2)}`;
+      document.getElementById('inc').textContent = `+${income.toFixed(2)}`;
+      document.getElementById('exp').textContent = `-${expense.toFixed(2)}`;
+      empty.style.display = entries.length ? 'none' : 'block';
+    }
+
+    render();
+  </script>
+</body>
+</html>
